@@ -17,6 +17,8 @@
 from dataclasses import dataclass, field
 from itertools import cycle
 from typing import Optional, Type
+import os
+import imageio.v2 as imageio
 import torch
 from torch.cuda.amp.grad_scaler import GradScaler
 from typing_extensions import Literal
@@ -99,6 +101,8 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
         self.guidance_scale_box = ViewerNumber(name="Text Guidance Scale", default_value=self.config.guidance_scale, cb_hook=self.guidance_scale_callback)
         self.image_guidance_scale_box = ViewerNumber(name="Image Guidance Scale", default_value=self.config.image_guidance_scale, cb_hook=self.image_guidance_scale_callback)
 
+        self.logdir = f"data_evol/{self.config.prompt.split()[-1]}"
+        os.makedirs(self.logdir, exist_ok=True)
 
     def guidance_scale_callback(self, handle: ViewerText) -> None:
         """Callback for guidance scale slider"""
@@ -175,6 +179,11 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
 
                 # write edited image to dataloader
                 self.datamanager.image_batch["image"][current_spot] = edited_image.squeeze().permute(1,2,0)
+
+                if (step % (self.config.edit_rate * 10) == 0):
+                    logged_image = 255 * torch.cat([original_image, rendered_image, edited_image], -1).squeeze().permute(1,2,0)
+                    logged_image = logged_image.type(torch.cuda.ByteTensor).cpu().numpy().clip(0, 255)
+                    imageio.imwrite(f"{self.logdir}/step{step:06d}_index{current_spot:03d}.png", logged_image)
 
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
 
