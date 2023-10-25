@@ -67,10 +67,12 @@ fi
 
 ############# 5. Preprocess ###############
 if [ ! -f "data/$DATA/transforms.json" ]; then
-    python scripts/colmap2nerf.py \
-    --images data/$DATA/images \
-    --text data/$DATA/colmap_text \
-    --out data/$DATA/transforms.json \
+    cd data/$DATA
+    python ../../scripts/colmap2nerf.py \
+    --images images \
+    --text colmap_text \
+    --out transforms.json \
     --overwrite
+    cd ../..
 fi
 ##########################################################
