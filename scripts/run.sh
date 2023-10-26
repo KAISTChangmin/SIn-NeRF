@@ -1,10 +1,10 @@
 if [ -z $DATA ]; then
-    DATA=face
+    DATA=js
 fi
 if [ -z $EXPNAME ]; then
-    EXPNAME=face_clown
+    EXPNAME=js_clown
 fi
-if [ -z $PROMPT ]; then
+if [ -z "$PROMPT" ]; then
     PROMPT="Turn him into a clown"
 fi
 if [ -z $GUIDANCE_SCALE ]; then
@@ -13,18 +13,31 @@ fi
 if [ -z $IMAGE_GUIDANCE_SCALE ]; then
     IMAGE_GUIDANCE_SCALE=1.5
 fi
+if [ -z $CUDA_VISIBLE_DEVICES ]; then
+    CUDA_VISIBLE_DEVICES="0,1,2,3"
+fi
+if [ -z $NUM_DEVICES ]; then
+    NUM_DEVICES=1
+fi
+if [ -z $PORT ]; then
+    PORT=7007
+fi
+
 
 TRAIN_NERF=false
 RENDER_NERF=false
-TRAIN_IN2N=true
-RENDER_IN2N=true
-CONCAT_VIDEO=true
-STACK=vstack            # vstack (vertical) / hstack (horizontal)
+TRAIN_IN2N=false
+RENDER_IN2N=false
+CONCAT_VIDEO=false
+STACK=hstack            # vstack (vertical) / hstack (horizontal)
 
 #################### NeRF Training ####################
 if $TRAIN_NERF; then
     ns-train nerfacto \
     --data data/$DATA \
+    --max-num-iterations 30000 \
+    --machine.num-devices $NUM_DEVICES \
+    --viewer.websocket-port $PORT \
     --viewer.quit-on-train-completion True \
     nerfstudio-data --train-split-fraction 1
 fi
@@ -58,6 +71,9 @@ if $TRAIN_IN2N; then
     --pipeline.prompt "$PROMPT" \
     --pipeline.guidance-scale $GUIDANCE_SCALE \
     --pipeline.image-guidance-scale $IMAGE_GUIDANCE_SCALE \
+    --max-num-iterations 15000 \
+    --machine.num-devices $NUM_DEVICES \
+    --viewer.websocket-port $PORT \
     --viewer.quit-on-train-completion True \
     nerfstudio-data --train-split-fraction 1
 fi
