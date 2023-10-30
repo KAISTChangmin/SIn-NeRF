@@ -27,6 +27,6 @@ for f in tqdm(fnames):
         img = img[Hc:Hc+L, Wc:Wc+L]
     
     if L > args.desired_size:
-        img = cv2.resize(img, dsize=(args.desired_size,args.desired_size))
+        img = cv2.resize(img, dsize=(args.desired_size,args.desired_size), interpolation=cv2.INTER_AREA)
     
     cv2.imwrite(os.path.join(args.dst_root, f), img)
