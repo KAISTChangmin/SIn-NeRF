@@ -6,6 +6,18 @@ if [ -z $VIDEO ]; then
     VIDEO=custom.mp4
 fi
 
+if [ -z $H ]; then
+    H=0
+fi
+
+if [ -z $W ]; then
+    W=0
+fi
+
+if [ -z $NUM_DATA ]; then
+    NUM_DATA=100
+fi
+
 if [ ! -f "data/$DATA/original.mp4" ]; then
     if [ ! -f $VIDEO ]; then
         echo "$VIDEO doesn't exists"
@@ -19,28 +31,30 @@ fi
 
 ###### 1. Copy Original Video to the data directory ######
 if [ ! -f "data/$DATA/original.mp4" ]; then
-    mv $VIDEO data/$DATA/original.mp4
+    cp $VIDEO data/$DATA/original.mp4
 fi
 ##########################################################
 
 
 ########### 2. Unpack all frames of the video ############
 if [ ! -d "data/$DATA/original_images" ]; then
-    mkdir -p data/$DATA/temp
-    ffmpeg -i data/$DATA/original.mp4 data/$DATA/temp/%04d.png
-    mv data/$DATA/temp data/$DATA/original_images
+    mkdir -p data/$DATA/temp_original_images
+    ffmpeg -i data/$DATA/original.mp4 data/$DATA/temp_original_images/%04d.png
+    mv data/$DATA/temp_original_images data/$DATA/original_images
 fi
 ##########################################################
 
 
 ##### 3. Uniformly Sample, Crop and Resize the Image #####
 if [ ! -d "data/$DATA/images" ]; then
-    mkdir -p data/$DATA/temp
+    mkdir -p data/$DATA/temp_images
     python scripts/crop_and_resize.py \
     --src_root data/$DATA/original_images \
-    --dst_root data/$DATA/temp \
-    --num_data 200
-    mv data/$DATA/temp data/$DATA/images
+    --dst_root data/$DATA/temp_images \
+    --H $H \
+    --W $W \
+    --num_data $NUM_DATA
+    mv data/$DATA/temp_images data/$DATA/images
 fi
 ##########################################################
 
