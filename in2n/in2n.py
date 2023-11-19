@@ -68,10 +68,14 @@ class InstructNeRF2NeRFModel(NerfactoModel):
         )
 
         loss_dict["rgb_loss"] = self.rgb_loss(gt_rgb, pred_rgb)
+        
+        pred_rgba = torch.cat([outputs["rgb"], outputs["accumulation"]], dim=1)
+        pred_rgb_lpips = self.renderer_rgb.blend_background(pred_rgba, background_color="black")
+        gt_rgb_lpips = self.renderer_rgb.blend_background(image, background_color="black")
 
         if self.config.use_lpips:
-            out_patches = (outputs["rgb"].view(-1, self.config.patch_size,self.config.patch_size, 3).permute(0, 3, 1, 2) * 2 - 1).clamp(-1, 1)
-            gt_patches = (image.view(-1, self.config.patch_size,self.config.patch_size, 3).permute(0, 3, 1, 2) * 2 - 1).clamp(-1, 1)
+            out_patches = (pred_rgb_lpips.view(-1, self.config.patch_size,self.config.patch_size, 3).permute(0, 3, 1, 2) * 2 - 1).clamp(-1, 1)
+            gt_patches = (gt_rgb_lpips.view(-1, self.config.patch_size,self.config.patch_size, 3).permute(0, 3, 1, 2) * 2 - 1).clamp(-1, 1)
             loss_dict["lpips_loss"] = self.config.lpips_loss_mult * self.lpips(out_patches, gt_patches)
 
         if self.training:

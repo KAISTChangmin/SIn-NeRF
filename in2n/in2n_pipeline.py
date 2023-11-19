@@ -152,7 +152,7 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
                 use_rgba = (original_image.shape[-1] == 4)
 
                 # get current camera, include camera transforms from original optimizer
-                camera_transforms = self.datamanager.train_camera_optimizer(current_index.unsqueeze(dim=0))
+                camera_transforms = self.model.camera_optimizer(current_index.unsqueeze(dim=0))
                 current_camera = self.datamanager.train_dataparser_outputs.cameras[current_index].to(self.device)
                 current_ray_bundle = current_camera.generate_rays(torch.tensor(list(range(1))).unsqueeze(-1), camera_opt_to_camera=camera_transforms)
 

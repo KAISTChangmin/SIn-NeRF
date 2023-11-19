@@ -13,6 +13,12 @@ fi
 if [ -z $IMAGE_GUIDANCE_SCALE ]; then
     IMAGE_GUIDANCE_SCALE=1.5
 fi
+if [ -z $BG ]; then
+    BG=last_sample
+fi
+if [ -z $DSC ]; then
+    DSC=False
+fi
 if [ -z $CUDA_VISIBLE_DEVICES ]; then
     CUDA_VISIBLE_DEVICES="0,1,2,3"
 fi
@@ -39,6 +45,8 @@ if $TRAIN_NERF; then
     --machine.num-devices $NUM_DEVICES \
     --viewer.websocket-port $PORT \
     --viewer.quit-on-train-completion True \
+    --pipeline.model.background-color $BG \
+    --pipeline.model.disable-scene-contraction $DSC \
     nerfstudio-data --train-split-fraction 1
 fi
 #######################################################
@@ -75,6 +83,8 @@ if $TRAIN_IN2N; then
     --machine.num-devices $NUM_DEVICES \
     --viewer.websocket-port $PORT \
     --viewer.quit-on-train-completion True \
+    --pipeline.model.background-color $BG \
+    --pipeline.model.disable-scene-contraction $DSC \
     nerfstudio-data --train-split-fraction 1
 fi
 #######################################################
