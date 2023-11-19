@@ -29,7 +29,8 @@ from in2n.in2n_datamanager import (
     InstructNeRF2NeRFDataManagerConfig,
 )
 from in2n.ip2p import InstructPix2Pix
-
+from rembg import remove
+import numpy as np
 
 @dataclass
 class InstructNeRF2NeRFPipelineConfig(VanillaPipelineConfig):
@@ -102,7 +103,10 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
         self.image_guidance_scale_box = ViewerNumber(name="Image Guidance Scale", default_value=self.config.image_guidance_scale, cb_hook=self.image_guidance_scale_callback)
 
         self.logdir = f"data_evol/{self.config.prompt.split()[-1]}"
-        os.makedirs(self.logdir, exist_ok=True)
+        self.logdir_rgb = os.path.join(self.logdir, "rgb")
+        self.logdir_msk = os.path.join(self.logdir, "msk")
+        os.makedirs(self.logdir_rgb, exist_ok=True)
+        os.makedirs(self.logdir_msk, exist_ok=True)
 
     def guidance_scale_callback(self, handle: ViewerText) -> None:
         """Callback for guidance scale slider"""
@@ -145,6 +149,8 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
                 # generate current index in datamanger
                 current_index = self.datamanager.image_batch["image_idx"][current_spot]
 
+                use_rgba = (original_image.shape[-1] == 4)
+
                 # get current camera, include camera transforms from original optimizer
                 camera_transforms = self.datamanager.train_camera_optimizer(current_index.unsqueeze(dim=0))
                 current_camera = self.datamanager.train_dataparser_outputs.cameras[current_index].to(self.device)
@@ -154,6 +160,13 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
                 original_image = original_image.unsqueeze(dim=0).permute(0, 3, 1, 2)
                 camera_outputs = self.model.get_outputs_for_camera_ray_bundle(current_ray_bundle)
                 rendered_image = camera_outputs["rgb"].unsqueeze(dim=0).permute(0, 3, 1, 2)
+                
+                if use_rgba:
+                    original_mask = original_image[:,3:]
+                    original_image = original_image[:,:3] * original_mask
+
+                    rendered_mask = camera_outputs["accumulation"].unsqueeze(dim=0).permute(0, 3, 1, 2)
+                    rendered_image = rendered_image * rendered_mask
 
                 # delete to free up memory
                 del camera_outputs
@@ -176,14 +189,30 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
                 # resize to original image size (often not necessary)
                 if (edited_image.size() != rendered_image.size()):
                     edited_image = torch.nn.functional.interpolate(edited_image, size=rendered_image.size()[2:], mode='bilinear')
+                
+                if use_rgba:
+                    rembg_input = edited_image.squeeze().permute(1,2,0).cpu().numpy()
+                    rembg_input = (255 * rembg_input).astype(np.uint8)
+                    rembg_output = remove(rembg_input)
+                    rembg_output = rembg_output.astype(np.float32)[...,3:] / 255
+                    rembg_output = torch.Tensor(rembg_output).to(dtype=original_image.dtype, device=original_image.device)
+                    edited_mask = rembg_output.unsqueeze(dim=0).permute(0, 3, 1, 2)
 
+                    updated_data = torch.cat([edited_image, edited_mask], 1)
+                
+                else:
+                    updated_data = edited_image
                 # write edited image to dataloader
-                self.datamanager.image_batch["image"][current_spot] = edited_image.squeeze().permute(1,2,0)
+                self.datamanager.image_batch["image"][current_spot] = updated_data.squeeze().permute(1,2,0)
 
                 if (step % (self.config.edit_rate * 10) == 0):
                     logged_image = 255 * torch.cat([original_image, rendered_image, edited_image], -1).squeeze().permute(1,2,0)
                     logged_image = logged_image.type(torch.cuda.ByteTensor).cpu().numpy().clip(0, 255)
-                    imageio.imwrite(f"{self.logdir}/step{step:06d}_index{current_spot:03d}.png", logged_image)
+                    imageio.imwrite(f"{self.logdir_rgb}/step{step:06d}_index{current_spot:03d}.png", logged_image)
+                    if use_rgba:
+                        logged_mask = 255 * torch.cat([original_mask, rendered_mask, edited_mask], -1)[0, 0]
+                        logged_mask = logged_mask.type(torch.cuda.ByteTensor).cpu().numpy().clip(0, 255)
+                        imageio.imwrite(f"{self.logdir_msk}/step{step:06d}_index{current_spot:03d}.png", logged_mask)
 
         loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
 
