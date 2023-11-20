@@ -29,8 +29,6 @@ from in2n.in2n_datamanager import (
     InstructNeRF2NeRFDataManagerConfig,
 )
 from in2n.ip2p import InstructPix2Pix
-from rembg import remove
-import numpy as np
 
 @dataclass
 class InstructNeRF2NeRFPipelineConfig(VanillaPipelineConfig):
@@ -192,8 +190,13 @@ class InstructNeRF2NeRFPipeline(VanillaPipeline):
                 
                 if use_rgba:
                     rembg_input = edited_image.squeeze().permute(1,2,0).cpu().numpy()
-                    rembg_input = (255 * rembg_input).astype(np.uint8)
-                    rembg_output = remove(rembg_input)
+                    rembg_input = (255 * rembg_input)
+                    try:
+                        rembg_output = remove(rembg_input.astype(np.uint8))
+                    except:
+                        import numpy as np
+                        from rembg import remove
+                        rembg_output = remove(rembg_input.astype(np.uint8))
                     rembg_output = rembg_output.astype(np.float32)[...,3:] / 255
                     rembg_output = torch.Tensor(rembg_output).to(dtype=original_image.dtype, device=original_image.device)
                     edited_mask = rembg_output.unsqueeze(dim=0).permute(0, 3, 1, 2)
