@@ -20,6 +20,34 @@ import math
 import cv2
 import os
 import shutil
+from camera_pose_visualizer import CameraPoseVisualizer
+from colmap_utils.load_colmap_data import load_colmap_depth, load_object_points
+
+def visualize(poses, points, save_path):
+    visualizer = CameraPoseVisualizer([-2, 2], [-2, 2], [-2, 2])
+    pyramid_color = (1, 0, 0, 0.3)
+    points_color  = (0, 0, 0, 0.5)
+    line_color    = (0, 0, 1, 1.0)
+
+    poses_for_plot = poses.copy()
+    poses_for_plot[:, :, 2] *= -1
+
+    visualizer.ax.view_init(0, 0)
+
+    # Plot Pose Pyramids
+    visualizer.plot_poses(poses_for_plot, color=pyramid_color, focal_len_scaled=0.4)
+    
+    # Plot Object Points
+    visualizer.ax.scatter(points[:, 0], points[:, 1], points[:, 2], s=1, color=points_color)
+    
+    # Plot a Line from the Object Mean to the Bottom 
+    mean = points.mean(0)
+    bottom = np.percentile(points[:, 2], 5)
+    visualizer.ax.plot([mean[0], mean[0]], [mean[1], mean[1]], [mean[2], bottom], color=line_color, lw=5, marker='x', ms=10, mew=3)
+
+    visualizer.fig.savefig(save_path)
+    return
+
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SCRIPTS_FOLDER = os.path.join(ROOT_DIR, "scripts")
@@ -27,6 +55,7 @@ SCRIPTS_FOLDER = os.path.join(ROOT_DIR, "scripts")
 def parse_args():
 	parser = argparse.ArgumentParser(description="Convert a text colmap export to nerf format transforms.json; optionally convert video to images, and optionally run colmap in the first place.")
 
+	parser.add_argument("--basedir", default=".", help="Name of the directory that contains the data")
 	parser.add_argument("--video_in", default="", help="Run ffmpeg first to convert a provided video file into a set of images. Uses the video_fps parameter also.")
 	parser.add_argument("--video_fps", default=2)
 	parser.add_argument("--time_slice", default="", help="Time (in seconds) in the format t1,t2 within which the images should be generated from the video. E.g.: \"--time_slice '10,300'\" will generate images only from 10th second to 300th second of the video.")
@@ -44,6 +73,8 @@ def parse_args():
 	parser.add_argument("--vocab_path", default="", help="Vocabulary tree path.")
 	parser.add_argument("--overwrite", action="store_true", help="Do not ask for confirmation for overwriting existing images and COLMAP data.")
 	parser.add_argument("--mask_categories", nargs="*", type=str, default=[], help="Object categories that should be masked out from the training images. See `scripts/category2id.json` for supported categories.")
+	parser.add_argument("--kernel_size", type=int, default=10)
+	parser.add_argument("--iterations", type=int, default=10)
 	args = parser.parse_args()
 	return args
 
@@ -336,6 +367,7 @@ if __name__ == "__main__":
 				elems=line.split(" ") # 1-4 is quat, 5-7 is trans, 9ff is filename (9, if filename contains no spaces)
 				#name = str(PurePosixPath(Path(IMAGE_FOLDER, elems[9])))
 				# why is this requireing a relitive path while using ^
+				save_path = str(f"./{os.path.relpath(IMAGE_FOLDER, start=args.basedir)}/{'_'.join(elems[9:])}")
 				image_rel = os.path.relpath(IMAGE_FOLDER)
 				name = str(f"./{image_rel}/{'_'.join(elems[9:])}")
 				b = sharpness(name)
@@ -355,7 +387,7 @@ if __name__ == "__main__":
 
 					up += c2w[0:3,1]
 
-				frame = {"file_path":name,"sharpness":b,"transform_matrix": c2w}
+				frame = {"file_path":save_path,"sharpness":b,"transform_matrix": c2w}
 				if len(cameras) != 1:
 					frame.update(cameras[int(elems[8])])
 				out["frames"].append(frame)
@@ -408,6 +440,34 @@ if __name__ == "__main__":
 		print("avg camera distance from origin", avglen)
 		for f in out["frames"]:
 			f["transform_matrix"][0:3,3] *= 4.0 / avglen # scale to "nerf sized"
+
+	poses = []
+	for f in out["frames"]:
+		poses.append(f["transform_matrix"])
+	poses = np.stack(poses, 0)[:, :3, :4]
+
+	masks = []
+	mask_paths = sorted(os.listdir(os.path.join(args.basedir, "masks")))
+	for mask_path in mask_paths:
+		real_path = os.path.join(args.basedir, "masks", mask_path)
+		msk = (cv2.imread(real_path)[...,0] > 0).astype(np.uint8)
+		eroded_msk = cv2.erode(msk, np.ones((args.kernel_size, args.kernel_size), np.uint8), iterations=args.iterations)
+		masks.append(eroded_msk)
+
+	object_points = load_object_points(args.basedir, masks)
+	object_points = object_points[:, [1,0,2]]
+	object_points[:, 2] *= -1
+	object_points_bottom = np.ones_like(object_points[:, :1])
+	object_points_ = np.concatenate([object_points, object_points_bottom], 1)
+	object_points = R @ object_points_.T
+	object_points = object_points[:-1].T
+	object_points -= totp[None]
+	object_points *= 4.0 / avglen
+
+	visualize(poses, object_points, os.path.join(args.basedir, "object_points.png"))
+	depth = load_colmap_depth(args.basedir, sc=4.0/avglen)
+	np.save(os.path.join(args.basedir, "colmap_depth.npy"), depth)
+	out["colmap_depth_file"] = "./colmap_depth.npy"
 
 	for f in out["frames"]:
 		f["transform_matrix"] = f["transform_matrix"].tolist()

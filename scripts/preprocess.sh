@@ -61,13 +61,7 @@ fi
 
 ######## 4. Run Colmap and Convert to Text Format ########
 if [ ! -f "data/$DATA/colmap_text/images.txt" ]; then
-    colmap automatic_reconstructor \
-    --workspace_path data/$DATA \
-    --image_path data/$DATA/images \
-    --camera_model OPENCV \
-    --single_camera 1 \
-    --sparse 1 \
-    --dense 0
+    python scripts/run_colmap.py --data_dir data/$DATA
 
     mkdir data/$DATA/colmap_text
     

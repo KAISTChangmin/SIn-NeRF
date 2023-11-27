@@ -1,14 +1,9 @@
 [project]
-name = "in2n"
+name = "dsnerf"
 version = "0.1.0"
 
 dependencies=[
     "nerfstudio>=0.3.0",
-    "clip @ git+https://github.com/openai/CLIP.git",
-    "diffusers>=0.14.0.dev0",
-    "transformers>=4.26.1",
-    "accelerate",
-    "einops",
 ]
 
 # black
@@ -36,9 +31,7 @@ disable = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["in2n"]
+include = ["dsnerf"]
 
 [project.entry-points.'nerfstudio.method_configs']
-in2n = 'in2n.in2n_config:in2n_method'
-in2n_small = 'in2n.in2n_config:in2n_method_small'
-in2n_tiny = 'in2n.in2n_config:in2n_method_tiny'
+dsnerf = 'dsnerf.dsnerf_config:dsnerf_method'
