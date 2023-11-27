@@ -44,9 +44,4 @@ class DSNeRFDataset(InputDataset):
             depth_values.append(colmap_depth[i]["depth"])
         self.depth_indices = np.concatenate(depth_indices, 0).astype(np.int32)
         self.depth_values = np.concatenate(depth_values, 0).astype(np.float32)
-
-    def get_metadata(self, data: Dict) -> Dict:
-        depth_indices = self.depth_indices
-        depth_values = self.depth_values
-
-        return {"depth_indices": depth_indices, "depth_values": depth_values}
+        self.N_points = self.depth_values.shape[0]

@@ -26,6 +26,7 @@ from dsnerf.dsnerf_dataset import DSNeRFDataset
 from rich.progress import Console
 
 import torch
+import numpy as np
 
 from nerfstudio.cameras.rays import RayBundle
 from nerfstudio.data.datamanagers.base_datamanager import (
@@ -51,21 +52,29 @@ class DSNeRFDataManager(VanillaDataManager):
     def dataset_type(self):
         return DSNeRFDataset
 
-    def next_train(self, step: int) -> Tuple[RayBundle, Dict]:
+    def next_train(self, step: int) -> Tuple[RayBundle, Dict, RayBundle, Dict]:
         """Returns the next batch of data from the train dataloader."""
         self.train_count += 1
-        batch = next(self.iter_train_image_dataloader)
+        image_batch = next(self.iter_train_image_dataloader)
         assert self.train_pixel_sampler is not None
-        image_batch = {k: v for k, v in batch.items() if k in ["image_idx", "image"]}
-        depth_batch = {k: v[0] for k, v in batch.items() if k in ["depth_indices", "depth_values"]}
-        image_batch = self.train_pixel_sampler.sample(image_batch)
-        image_ray_indices = image_batch["indices"]
-        image_ray_bundle = self.train_ray_generator(image_ray_indices)
+        assert isinstance(image_batch, dict)
+        batch = self.train_pixel_sampler.sample(image_batch)
+        ray_indices = batch["indices"]
+        ray_bundle = self.train_ray_generator(ray_indices)
 
-        N_points = depth_batch["depth_values"].shape[0]
-        N_samples = image_ray_indices.shape[0]
-        point_indices = (torch.rand(N_samples) * N_points).long()
-        depth_ray_indices = depth_batch["depth_indices"][point_indices]
+        N_samples = ray_indices.shape[0]
+        depth_batch = self.get_depth_batch(N_samples)
+        depth_ray_indices = depth_batch["depth_indices"]
         depth_ray_bundle = self.train_ray_generator(depth_ray_indices)
 
-        return image_ray_bundle, image_batch, depth_ray_bundle, depth_batch
+        return ray_bundle, batch, depth_ray_bundle, depth_batch
+    
+    def get_depth_batch(self, N_samples):
+        point_indices = (np.random.rand(N_samples) * self.train_dataset.N_points).astype(np.int32)
+        depth_indices = self.train_dataset.depth_indices[point_indices]
+        depth_values = self.train_dataset.depth_values[point_indices]
+        depth_batch = {
+            "depth_indices": torch.IntTensor(depth_indices).to(self.device),
+            "depth_values": torch.FloatTensor(depth_values).to(self.device),
+        }
+        return depth_batch

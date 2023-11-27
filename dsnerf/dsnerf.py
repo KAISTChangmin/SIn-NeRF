@@ -28,7 +28,7 @@ from nerfstudio.models.nerfacto import NerfactoModel, NerfactoModelConfig
 class DSNeRFModelConfig(NerfactoModelConfig):
     """Configuration for the DSNeRFModel."""
     _target: Type = field(default_factory=lambda: DSNeRFModel)
-    depth_loss_mult: float = 0.1
+    depth_loss_mult: float = 0.05
     """Multiplier for Depth loss."""
 
 class DSNeRFModel(NerfactoModel):
@@ -43,7 +43,7 @@ class DSNeRFModel(NerfactoModel):
     def get_metrics_dict(self, outputs, batch):
         metrics_dict = super().get_metrics_dict(outputs, batch)
         if self.training:
-            pred_depth = outputs["expected_depth"]
+            pred_depth = outputs["depth_pred"][:, 0]
             gt_depth = batch["depth_values"].to(self.device)
             metrics_dict["depth_loss"] = self.depth_loss(pred_depth, gt_depth)
         return metrics_dict

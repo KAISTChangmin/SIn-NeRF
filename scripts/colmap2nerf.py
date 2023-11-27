@@ -391,6 +391,7 @@ if __name__ == "__main__":
 				if len(cameras) != 1:
 					frame.update(cameras[int(elems[8])])
 				out["frames"].append(frame)
+	out["frames"] = sorted(out["frames"], key=lambda x:x["file_path"])
 	nframes = len(out["frames"])
 
 	if args.keep_colmap_coords:

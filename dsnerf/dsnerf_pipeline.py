@@ -49,7 +49,7 @@ class DSNeRFPipeline(VanillaPipeline):
         model_outputs = self._model(ray_bundle)
         depth_model_outputs = self._model(depth_ray_bundle)
 
-        model_outputs["expected_depth"] = depth_model_outputs["expected_depth"]
+        model_outputs["depth_pred"] = depth_model_outputs["expected_depth"]
         batch["depth_values"] = depth_batch["depth_values"]
 
         metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
