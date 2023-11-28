@@ -13,7 +13,7 @@
 # limitations under the License.
 
 """
-Instruct-NeRF2NeRF Datamanager.
+DS-NeRF Datamanager.
 """
 
 from __future__ import annotations

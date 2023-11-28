@@ -1,5 +1,5 @@
 [project]
-name = "dsnerf"
+name = "spinnerf"
 version = "0.1.0"
 
 dependencies=[
@@ -31,7 +31,7 @@ disable = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["dsnerf"]
+include = ["spinnerf"]
 
 [project.entry-points.'nerfstudio.method_configs']
-dsnerf = 'dsnerf.dsnerf_config:dsnerf_method'
+spinnerf = 'spinnerf.spinnerf_config:spinnerf_method'
